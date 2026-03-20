@@ -1,0 +1,9 @@
+# Service Account Credentials
+ga4-credentials.json
+*.credentials.json
+
+# Python
+__pycache__/
+*.pyc
+.env
+venv/

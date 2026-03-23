@@ -552,6 +552,182 @@ class GA4Analytics:
         self.hour_of_day(export_csv)
         self.daily_trend(export_csv)
 
+    # ── Modul H: UX-Design-Insights ────────────────────────────────
+
+    def ux_mobile_vs_desktop(self, export_csv=False):
+        metrics = ['engagementRate', 'bounceRate', 'averageSessionDuration',
+                   'screenPageViews', 'conversions']
+        resp = self._run_report(
+            ['deviceCategory'], metrics,
+            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
+        )
+        headers = ['Geraet', 'Engage%', 'Bounce%', 'Dauer', 'PageViews', 'Conversions']
+        rows = self._rows_to_list(resp, 1, metrics)
+        self._print_table('UX: Mobile vs. Desktop', headers, rows)
+        if export_csv:
+            self._export_csv('ux_mobile_vs_desktop.csv', headers, rows)
+        if rows:
+            insights = []
+            device_map = {r[0]: r for r in rows}
+            mobile = device_map.get('mobile')
+            desktop = device_map.get('desktop')
+            if mobile and desktop:
+                insights.append(f'Desktop: Engagement {desktop[1]}, Bounce {desktop[2]}, Dauer {desktop[3]}')
+                insights.append(f'Mobile: Engagement {mobile[1]}, Bounce {mobile[2]}, Dauer {mobile[3]}')
+                m_eng = float(mobile[1].rstrip('%'))
+                d_eng = float(desktop[1].rstrip('%'))
+                gap = d_eng - m_eng
+                if gap > 10:
+                    insights.append(f'PROBLEM: Mobile Engagement {gap:.0f}pp niedriger als Desktop')
+                else:
+                    insights.append('Mobile und Desktop UX auf aehnlichem Niveau')
+            self._add_summary('UX: Mobile vs. Desktop', insights)
+
+    def ux_screen_resolution(self, export_csv=False):
+        metrics = ['sessions', 'bounceRate', 'engagementRate']
+        resp = self._run_report(
+            ['screenResolution', 'deviceCategory'], metrics, limit=20,
+            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
+        )
+        headers = ['Aufloesung', 'Geraet', 'Sessions', 'Bounce%', 'Engage%']
+        rows = self._rows_to_list(resp, 2, metrics)
+        self._print_table('UX: Bildschirmaufloesung (Top 20)', headers, rows)
+        if export_csv:
+            self._export_csv('ux_screen_resolution.csv', headers, rows)
+        if rows:
+            problem_resolutions = [r for r in rows if int(r[2]) > 20
+                                   and float(r[3].rstrip('%')) > 60]
+            insights = [f'Haeufigste Aufloesung: {rows[0][0]} ({rows[0][1]}, {rows[0][2]} Sessions)']
+            for r in problem_resolutions[:3]:
+                insights.append(f'Hohe Bounce bei {r[0]} ({r[1]}): {r[3]}')
+            self._add_summary('UX: Bildschirmaufloesungen', insights)
+
+    def ux_engagement_per_page(self, export_csv=False):
+        metrics = ['userEngagementDuration', 'engagementRate', 'screenPageViews']
+        resp = self._run_report(
+            ['pagePath', 'pageTitle'], metrics, limit=30,
+            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='screenPageViews'), desc=True)],
+        )
+        headers = ['Seite', 'Titel', 'Engage-Zeit', 'Engage%', 'Views']
+        rows = self._rows_to_list(resp, 2, metrics)
+        self._print_table('UX: Engagement pro Seite (Top 30)', headers, rows)
+        if export_csv:
+            self._export_csv('ux_engagement_per_page.csv', headers, rows)
+        if rows:
+            best = max(rows, key=lambda r: float(r[2].rstrip('s'))) if rows else None
+            worst = min((r for r in rows if int(r[4]) > 10),
+                        key=lambda r: float(r[2].rstrip('s')), default=None)
+            insights = []
+            if best:
+                insights.append(f'Hoechstes Engagement: {best[1]} ({best[2]} aktive Zeit)')
+            if worst:
+                insights.append(f'Niedrigstes Engagement: {worst[1]} ({worst[2]} aktive Zeit, {worst[4]} Views)')
+            self._add_summary('UX: Engagement pro Seite', insights)
+
+    def ux_exit_pages(self, export_csv=False):
+        # Sessions pro Seite vs. PageViews gibt einen Hinweis auf Exit-Verhalten
+        metrics = ['sessions', 'screenPageViews', 'bounceRate', 'engagementRate']
+        resp = self._run_report(
+            ['pagePath'], metrics, limit=20,
+            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
+        )
+        headers = ['Seite', 'Sessions', 'PageViews', 'Bounce%', 'Engage%']
+        rows = self._rows_to_list(resp, 1, metrics)
+        # Sortiere nach hoher Bounce-Rate (= Exit-Indikator)
+        rows_sorted = sorted(rows, key=lambda r: float(r[3].rstrip('%')), reverse=True)
+        self._print_table('UX: Exit-Seiten (nach Bounce-Rate)', headers, rows_sorted)
+        if export_csv:
+            self._export_csv('ux_exit_pages.csv', headers, rows_sorted)
+        if rows_sorted:
+            self._add_summary('UX: Exit-Seiten', [
+                f'{r[0]}: Bounce {r[3]}, {r[1]} Sessions' for r in rows_sorted[:5]
+            ])
+
+    def ux_landing_to_purchase(self, export_csv=False):
+        metrics = ['sessions', 'addToCarts', 'ecommercePurchases']
+        try:
+            resp = self._run_report(
+                ['landingPage'], metrics, limit=20,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  UX Landing-to-Purchase nicht verfuegbar ({e})')
+            return
+        headers = ['Landing Page', 'Sessions', 'Warenkorb', 'Kaeufe', 'Conv%']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            sessions = int(r[1])
+            purchases = int(r[3])
+            r.append(f'{(purchases / sessions * 100):.2f}%' if sessions > 0 else '0%')
+        self._print_table('UX: Landing Page → Kauf Funnel', headers, rows)
+        if export_csv:
+            self._export_csv('ux_landing_to_purchase.csv', headers, rows)
+        if rows:
+            converting = [r for r in rows if r[3] != '0']
+            non_converting = [r for r in rows if r[3] == '0' and int(r[1]) > 20]
+            insights = []
+            for r in converting[:3]:
+                insights.append(f'Konvertiert: {r[0]} ({r[4]} Conv-Rate, {r[3]} Kaeufe)')
+            for r in non_converting[:3]:
+                insights.append(f'Kein Kauf trotz Traffic: {r[0]} ({r[1]} Sessions, 0 Kaeufe)')
+            self._add_summary('UX: Landing Page Funnel', insights)
+
+    def ux_new_vs_returning(self, export_csv=False):
+        metrics = ['engagementRate', 'bounceRate', 'averageSessionDuration']
+        resp = self._run_report(
+            ['newVsReturning', 'deviceCategory'], metrics,
+            order_by=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name='newVsReturning'))],
+        )
+        headers = ['Nutzer-Typ', 'Geraet', 'Engage%', 'Bounce%', 'Dauer']
+        rows = self._rows_to_list(resp, 2, metrics)
+        self._print_table('UX: Neue vs. Wiederkehrende nach Geraet', headers, rows)
+        if export_csv:
+            self._export_csv('ux_new_vs_returning.csv', headers, rows)
+        if rows:
+            self._add_summary('UX: Neue vs. Wiederkehrende', [
+                f'{r[0]} auf {r[1]}: Engagement {r[2]}, Bounce {r[3]}' for r in rows
+            ])
+
+    def ux_product_funnel(self, export_csv=False):
+        metrics = ['itemsViewed', 'itemsAddedToCart', 'itemsPurchased']
+        try:
+            resp = self._run_report(
+                ['itemName'], metrics, limit=20,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='itemsViewed'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  UX Produkt-Funnel nicht verfuegbar ({e})')
+            return
+        headers = ['Produkt', 'Views', 'Warenkorb', 'Gekauft', 'View→Cart%', 'Cart→Buy%']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            views = int(r[1])
+            cart = int(r[2])
+            bought = int(r[3])
+            r.append(f'{(cart / views * 100):.1f}%' if views > 0 else '0%')
+            r.append(f'{(bought / cart * 100):.1f}%' if cart > 0 else '0%')
+        self._print_table('UX: Produkt-Interaktions-Funnel', headers, rows)
+        if export_csv:
+            self._export_csv('ux_product_funnel.csv', headers, rows)
+        if rows:
+            insights = []
+            for r in rows[:3]:
+                insights.append(f'{r[0]}: {r[1]} Views → {r[2]} Warenkorb ({r[4]}) → {r[3]} Kauf ({r[5]})')
+            low_cart = [r for r in rows if int(r[1]) > 10 and r[4] != '0%'
+                        and float(r[4].rstrip('%')) < 5]
+            for r in low_cart[:2]:
+                insights.append(f'Niedriger View→Cart: {r[0]} nur {r[4]} bei {r[1]} Views')
+            self._add_summary('UX: Produkt-Funnel', insights)
+
+    def run_ux(self, export_csv=False):
+        self.ux_mobile_vs_desktop(export_csv)
+        self.ux_screen_resolution(export_csv)
+        self.ux_engagement_per_page(export_csv)
+        self.ux_exit_pages(export_csv)
+        self.ux_landing_to_purchase(export_csv)
+        self.ux_new_vs_returning(export_csv)
+        self.ux_product_funnel(export_csv)
+
     # ── Modul G: Problem-Erkennung ───────────────────────────────────
 
     def problem_detection(self, export_csv=False):
@@ -641,6 +817,7 @@ class GA4Analytics:
         self.run_devices(export_csv)
         self.run_geo(export_csv)
         self.run_time(export_csv)
+        self.run_ux(export_csv)
         self.problem_detection(export_csv)
         self._write_summary()
 
@@ -648,7 +825,7 @@ class GA4Analytics:
 def main():
     parser = argparse.ArgumentParser(description='GA4 Shop-Analyse-Suite fuer labtec-safety')
     parser.add_argument('--all', action='store_true', help='Alle Module ausfuehren')
-    parser.add_argument('--module', choices=['traffic', 'behavior', 'ecommerce', 'devices', 'geo', 'time', 'problems'],
+    parser.add_argument('--module', choices=['traffic', 'behavior', 'ecommerce', 'devices', 'geo', 'time', 'ux', 'problems'],
                         help='Einzelnes Modul ausfuehren')
     parser.add_argument('--days', type=int, default=90, help='Zeitraum in Tagen (Standard: 90)')
     parser.add_argument('--csv', action='store_true', help='CSV-Export aktivieren')
@@ -684,6 +861,9 @@ def main():
         analytics._write_summary()
     elif args.module == 'time':
         analytics.run_time(export_csv=args.csv)
+        analytics._write_summary()
+    elif args.module == 'ux':
+        analytics.run_ux(export_csv=args.csv)
         analytics._write_summary()
     elif args.module == 'problems':
         analytics.problem_detection(export_csv=args.csv)

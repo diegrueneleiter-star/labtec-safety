@@ -557,12 +557,10 @@ class GA4Analytics:
     def ux_mobile_vs_desktop(self, export_csv=False):
         metrics = ['sessions', 'engagementRate', 'bounceRate', 'averageSessionDuration',
                    'screenPageViews', 'conversions']
-        resp = self._run_report(
-            ['deviceCategory'], metrics,
-            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
-        )
+        resp = self._run_report(['deviceCategory'], metrics)
         headers = ['Geraet', 'Sessions', 'Engage%', 'Bounce%', 'Dauer', 'PageViews', 'Conversions']
         rows = self._rows_to_list(resp, 1, metrics)
+        rows.sort(key=lambda r: int(r[1]), reverse=True)
         self._print_table('UX: Mobile vs. Desktop', headers, rows)
         if export_csv:
             self._export_csv('ux_mobile_vs_desktop.csv', headers, rows)
@@ -587,10 +585,10 @@ class GA4Analytics:
         metrics = ['sessions', 'bounceRate', 'engagementRate']
         resp = self._run_report(
             ['screenResolution', 'deviceCategory'], metrics, limit=20,
-            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
         )
         headers = ['Aufloesung', 'Geraet', 'Sessions', 'Bounce%', 'Engage%']
         rows = self._rows_to_list(resp, 2, metrics)
+        rows.sort(key=lambda r: int(r[2]), reverse=True)
         self._print_table('UX: Bildschirmaufloesung (Top 20)', headers, rows)
         if export_csv:
             self._export_csv('ux_screen_resolution.csv', headers, rows)
@@ -627,10 +625,7 @@ class GA4Analytics:
     def ux_exit_pages(self, export_csv=False):
         # Sessions pro Seite vs. PageViews gibt einen Hinweis auf Exit-Verhalten
         metrics = ['sessions', 'screenPageViews', 'bounceRate', 'engagementRate']
-        resp = self._run_report(
-            ['pagePath'], metrics, limit=20,
-            order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
-        )
+        resp = self._run_report(['pagePath'], metrics, limit=20)
         headers = ['Seite', 'Sessions', 'PageViews', 'Bounce%', 'Engage%']
         rows = self._rows_to_list(resp, 1, metrics)
         # Sortiere nach hoher Bounce-Rate (= Exit-Indikator)
@@ -646,10 +641,7 @@ class GA4Analytics:
     def ux_landing_to_purchase(self, export_csv=False):
         metrics = ['sessions', 'addToCarts', 'ecommercePurchases']
         try:
-            resp = self._run_report(
-                ['landingPage'], metrics, limit=20,
-                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
-            )
+            resp = self._run_report(['landingPage'], metrics, limit=20)
         except Exception as e:
             print(f'\n  UX Landing-to-Purchase nicht verfuegbar ({e})')
             return

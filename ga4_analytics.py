@@ -555,13 +555,13 @@ class GA4Analytics:
     # ── Modul H: UX-Design-Insights ────────────────────────────────
 
     def ux_mobile_vs_desktop(self, export_csv=False):
-        metrics = ['engagementRate', 'bounceRate', 'averageSessionDuration',
+        metrics = ['sessions', 'engagementRate', 'bounceRate', 'averageSessionDuration',
                    'screenPageViews', 'conversions']
         resp = self._run_report(
             ['deviceCategory'], metrics,
             order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='sessions'), desc=True)],
         )
-        headers = ['Geraet', 'Engage%', 'Bounce%', 'Dauer', 'PageViews', 'Conversions']
+        headers = ['Geraet', 'Sessions', 'Engage%', 'Bounce%', 'Dauer', 'PageViews', 'Conversions']
         rows = self._rows_to_list(resp, 1, metrics)
         self._print_table('UX: Mobile vs. Desktop', headers, rows)
         if export_csv:
@@ -572,10 +572,10 @@ class GA4Analytics:
             mobile = device_map.get('mobile')
             desktop = device_map.get('desktop')
             if mobile and desktop:
-                insights.append(f'Desktop: Engagement {desktop[1]}, Bounce {desktop[2]}, Dauer {desktop[3]}')
-                insights.append(f'Mobile: Engagement {mobile[1]}, Bounce {mobile[2]}, Dauer {mobile[3]}')
-                m_eng = float(mobile[1].rstrip('%'))
-                d_eng = float(desktop[1].rstrip('%'))
+                insights.append(f'Desktop: Engagement {desktop[2]}, Bounce {desktop[3]}, Dauer {desktop[4]}')
+                insights.append(f'Mobile: Engagement {mobile[2]}, Bounce {mobile[3]}, Dauer {mobile[4]}')
+                m_eng = float(mobile[2].rstrip('%'))
+                d_eng = float(desktop[2].rstrip('%'))
                 gap = d_eng - m_eng
                 if gap > 10:
                     insights.append(f'PROBLEM: Mobile Engagement {gap:.0f}pp niedriger als Desktop')

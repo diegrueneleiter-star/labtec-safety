@@ -24,7 +24,7 @@ from datetime import datetime
 
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
-    DateRange, Dimension, Filter, FilterExpression, Metric, OrderBy,
+    DateRange, Dimension, Filter, FilterExpression, Metric, NumericValue, OrderBy,
     RunReportRequest,
 )
 
@@ -231,7 +231,7 @@ class GA4Analytics:
                 field_name='sessions',
                 numeric_filter=Filter.NumericFilter(
                     operation=Filter.NumericFilter.Operation.GREATER_THAN,
-                    value=Filter.NumericFilter.NumericValue(int64_value=10),
+                    value=NumericValue(int64_value=10),
                 ),
             )),
         )

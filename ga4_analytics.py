@@ -10,6 +10,9 @@ Module:
   E) Geografie
   F) Zeitliche Muster
   G) Problem-Erkennung
+  H) UX-Design-Insights
+  I) Business Insights (Erstakquise, Kategorien, Funnel, Effizienz, AOV,
+     Wiederkaufrate, Landing-Page-Effizienz, Mobile Gap, Monatstrend, Stickiness)
 
 Nutzung:
   python ga4_analytics.py --all
@@ -169,17 +172,30 @@ class GA4Analytics:
             self._add_summary('Kanal-Performance', insights)
 
     def new_vs_returning(self, export_csv=False):
-        metrics = ['sessions', 'totalUsers', 'screenPageViews', 'engagementRate']
-        resp = self._run_report(['newVsReturning'], metrics)
-        headers = ['Typ', 'Sessions', 'Users', 'PageViews', 'Engage%']
-        rows = self._rows_to_list(resp, 1, metrics)
+        metrics = ['sessions', 'totalUsers', 'screenPageViews', 'engagementRate',
+                   'purchaseRevenue', 'ecommercePurchases', 'averagePurchaseRevenue']
+        try:
+            resp = self._run_report(['newVsReturning'], metrics)
+            headers = ['Typ', 'Sessions', 'Users', 'PageViews', 'Engage%',
+                       'Umsatz', 'Kaeufe', 'Avg. Warenkorb']
+            rows = self._rows_to_list(resp, 1, metrics)
+        except Exception:
+            # Fallback ohne E-Commerce-Metriken
+            metrics = ['sessions', 'totalUsers', 'screenPageViews', 'engagementRate']
+            resp = self._run_report(['newVsReturning'], metrics)
+            headers = ['Typ', 'Sessions', 'Users', 'PageViews', 'Engage%']
+            rows = self._rows_to_list(resp, 1, metrics)
         self._print_table('Neue vs. Wiederkehrende Nutzer', headers, rows)
         if export_csv:
             self._export_csv('new_vs_returning.csv', headers, rows)
         if rows:
-            self._add_summary('Neue vs. Wiederkehrende', [
-                f'{r[0]}: {r[1]} Sessions, {r[3]} PageViews, Engagement {r[4]}' for r in rows
-            ])
+            insights = []
+            for r in rows:
+                line = f'{r[0]}: {r[1]} Sessions, {r[3]} PageViews, Engagement {r[4]}'
+                if len(r) > 5:
+                    line += f', Umsatz {r[5]} CHF ({r[6]} Kaeufe, Avg. {r[7]} CHF)'
+                insights.append(line)
+            self._add_summary('Neue vs. Wiederkehrende', insights)
 
     def landing_pages(self, export_csv=False):
         metrics = ['sessions', 'bounceRate', 'averageSessionDuration', 'engagementRate']
@@ -289,8 +305,8 @@ class GA4Analytics:
             self._export_csv('ecommerce_revenue_by_source.csv', headers, rows)
         if rows:
             self._add_summary('Umsatz nach Quelle', [
-                f'Top: {rows[0][0]}/{rows[0][1]} = {rows[0][3]} EUR ({rows[0][2]} Kaeufe)'
-            ] + [f'{r[0]}/{r[1]}: {r[3]} EUR' for r in rows[1:4]])
+                f'Top: {rows[0][0]}/{rows[0][1]} = {rows[0][3]} CHF ({rows[0][2]} Kaeufe)'
+            ] + [f'{r[0]}/{r[1]}: {r[3]} CHF' for r in rows[1:4]])
 
     def transaction_summary(self, export_csv=False):
         metrics = ['ecommercePurchases', 'purchaseRevenue', 'averagePurchaseRevenue']
@@ -318,9 +334,9 @@ class GA4Analytics:
         if total_purchases > 0:
             avg_order = total_revenue / total_purchases
             self._add_summary('Transaktionen Gesamt', [
-                f'Gesamt-Umsatz: {total_revenue:,.2f} EUR',
+                f'Gesamt-Umsatz: {total_revenue:,.2f} CHF',
                 f'Anzahl Kaeufe: {total_purchases}',
-                f'Durchschn. Warenkorbwert: {avg_order:,.2f} EUR',
+                f'Durchschn. Warenkorbwert: {avg_order:,.2f} CHF',
             ])
 
     def product_performance(self, export_csv=False):
@@ -341,8 +357,8 @@ class GA4Analytics:
             self._export_csv('product_performance.csv', headers, rows)
         if rows:
             self._add_summary('Produkt-Performance', [
-                f'Bestseller: {rows[0][0]} ({rows[0][4]} EUR, {rows[0][3]}x gekauft)'
-            ] + [f'{r[0]}: {r[4]} EUR Umsatz' for r in rows[1:5]])
+                f'Bestseller: {rows[0][0]} ({rows[0][4]} CHF, {rows[0][3]}x gekauft)'
+            ] + [f'{r[0]}: {r[4]} CHF Umsatz' for r in rows[1:5]])
 
     def cart_abandonment(self, export_csv=False):
         metrics = ['addToCarts', 'ecommercePurchases']
@@ -398,7 +414,7 @@ class GA4Analytics:
             self._export_csv('conversion_by_channel.csv', headers, rows)
         if rows:
             self._add_summary('Conversion nach Kanal', [
-                f'{r[0]}: {r[4]} Conversion-Rate, {r[3]} EUR Umsatz' for r in rows if r[2] != '0'
+                f'{r[0]}: {r[4]} Conversion-Rate, {r[3]} CHF Umsatz' for r in rows if r[2] != '0'
             ][:5])
 
     def run_ecommerce(self, export_csv=False):
@@ -738,7 +754,7 @@ class GA4Analytics:
                     field_name='sessions',
                     numeric_filter=Filter.NumericFilter(
                         operation=Filter.NumericFilter.Operation.GREATER_THAN,
-                        value=Filter.NumericFilter.NumericValue(int64_value=20),
+                        value=NumericValue(int64_value=20),
                     ),
                 )),
             )
@@ -800,6 +816,346 @@ class GA4Analytics:
             print('  Keine kritischen Probleme erkannt.')
             self._add_summary('Erkannte Probleme', ['Keine kritischen Probleme erkannt.'])
 
+    # ── Modul I: Business Insights ────────────────────────────────────
+
+    def first_touch_attribution(self, export_csv=False):
+        metrics = ['purchaseRevenue', 'ecommercePurchases', 'totalUsers']
+        try:
+            resp = self._run_report(
+                ['firstUserDefaultChannelGroup'], metrics,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='purchaseRevenue'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  Business: Erstakquise-Attribution nicht verfuegbar ({e})')
+            return
+        headers = ['Erstkanal', 'Umsatz', 'Kaeufe', 'Users', 'CHF/User']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            users = int(r[3])
+            revenue = float(r[1].replace(',', ''))
+            r.append(f'{revenue / users:.2f}' if users > 0 else '0.00')
+        rows = [r for r in rows if r[2] != '0']
+        self._print_table('Erstakquise-Attribution', headers, rows)
+        if export_csv and rows:
+            self._export_csv('first_touch_attribution.csv', headers, rows)
+        if rows:
+            self._add_summary('Erstakquise-Attribution', [
+                f'{r[0]}: {r[1]} CHF Umsatz, {r[2]} Kaeufe, {r[4]} CHF/User' for r in rows[:5]
+            ])
+
+    def product_category_performance(self, export_csv=False):
+        metrics = ['itemRevenue', 'itemsPurchased', 'itemsViewed', 'itemsAddedToCart']
+        try:
+            resp = self._run_report(
+                ['itemCategory'], metrics, limit=20,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='itemRevenue'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  Business: Produktkategorie-Daten nicht verfuegbar ({e})')
+            return
+        headers = ['Kategorie', 'Umsatz', 'Gekauft', 'Views', 'In Warenkorb', 'Cart/View%']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            views = int(r[3])
+            cart = int(r[4])
+            r.append(f'{cart / views * 100:.1f}%' if views > 0 else '0.0%')
+        rows = [r for r in rows if r[1] != '0.00' or r[3] != '0']
+        self._print_table('Produktkategorie-Performance', headers, rows)
+        if export_csv and rows:
+            self._export_csv('product_category_performance.csv', headers, rows)
+        if rows:
+            self._add_summary('Produktkategorie-Performance', [
+                f'{r[0]}: {r[1]} CHF Umsatz, {r[2]}x gekauft, Cart/View {r[5]}' for r in rows[:5]
+            ])
+
+    def conversion_funnel(self, export_csv=False):
+        try:
+            resp = self._run_report(
+                ['date'], ['sessions', 'addToCarts', 'ecommercePurchases', 'purchaseRevenue'],
+            )
+        except Exception as e:
+            print(f'\n  Business: Conversion Funnel nicht verfuegbar ({e})')
+            return
+        total_sessions = 0
+        total_cart = 0
+        total_purchase = 0
+        total_revenue = 0.0
+        for row in resp.rows:
+            total_sessions += int(float(row.metric_values[0].value))
+            total_cart += int(float(row.metric_values[1].value))
+            total_purchase += int(float(row.metric_values[2].value))
+            total_revenue += float(row.metric_values[3].value)
+        headers = ['Stufe', 'Anzahl', 'Drop-off%', 'Conv. von Start%']
+        funnel = []
+        funnel.append(['Sessions', str(total_sessions), '-', '100%'])
+        if total_sessions > 0:
+            cart_rate = total_cart / total_sessions * 100
+            cart_drop = 100 - cart_rate
+            funnel.append(['Warenkorb', str(total_cart), f'{cart_drop:.1f}%', f'{cart_rate:.1f}%'])
+        if total_cart > 0:
+            buy_rate_from_cart = total_purchase / total_cart * 100
+            buy_drop = 100 - buy_rate_from_cart
+            buy_rate_total = total_purchase / total_sessions * 100 if total_sessions > 0 else 0
+            funnel.append(['Kauf', str(total_purchase), f'{buy_drop:.1f}%', f'{buy_rate_total:.2f}%'])
+        funnel.append(['Umsatz', f'{total_revenue:,.2f} CHF', '-', '-'])
+        self._print_table('Conversion Funnel (Gesamt)', headers, funnel)
+        if export_csv:
+            self._export_csv('conversion_funnel.csv', headers, funnel)
+        if total_sessions > 0:
+            self._add_summary('Conversion Funnel', [
+                f'{total_sessions} Sessions → {total_cart} Warenkorb → {total_purchase} Kauf',
+                f'Session→Cart: {total_cart/total_sessions*100:.1f}%',
+                f'Cart→Kauf: {total_purchase/total_cart*100:.1f}%' if total_cart > 0 else 'Cart→Kauf: 0%',
+                f'Gesamt-Conversion: {total_purchase/total_sessions*100:.2f}%',
+                f'Umsatz: {total_revenue:,.2f} CHF',
+            ])
+
+    def channel_revenue_efficiency(self, export_csv=False):
+        metrics = ['purchaseRevenue', 'ecommercePurchases', 'sessions', 'totalUsers']
+        try:
+            resp = self._run_report(
+                ['sessionDefaultChannelGroup'], metrics,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='purchaseRevenue'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  Business: Kanal-Effizienz nicht verfuegbar ({e})')
+            return
+        headers = ['Kanal', 'Umsatz', 'Kaeufe', 'Sessions', 'Users', 'CHF/Session', 'CHF/User']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            revenue = float(r[1].replace(',', ''))
+            sessions = int(r[3])
+            users = int(r[4])
+            r.append(f'{revenue / sessions:.2f}' if sessions > 0 else '0.00')
+            r.append(f'{revenue / users:.2f}' if users > 0 else '0.00')
+        self._print_table('Kanal-Effizienz (Revenue/Session)', headers, rows)
+        if export_csv:
+            self._export_csv('channel_revenue_efficiency.csv', headers, rows)
+        if rows:
+            paying = [r for r in rows if r[2] != '0']
+            self._add_summary('Kanal-Effizienz', [
+                f'{r[0]}: {r[5]} CHF/Session, {r[6]} CHF/User ({r[1]} CHF Umsatz)' for r in paying[:5]
+            ])
+
+    def aov_trend(self, export_csv=False):
+        metrics = ['purchaseRevenue', 'ecommercePurchases', 'averagePurchaseRevenue']
+        try:
+            resp = self._run_report(
+                ['date'], metrics,
+                order_by=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name='date'))],
+            )
+        except Exception as e:
+            print(f'\n  Business: AOV-Trend nicht verfuegbar ({e})')
+            return
+        headers = ['Datum', 'Umsatz', 'Kaeufe', 'Avg. Warenkorb']
+        rows = self._rows_to_list(resp, 1, metrics)
+        # Nur Tage mit Kaeufen behalten
+        rows = [r for r in rows if r[2] != '0']
+        for r in rows:
+            d = r[0]
+            if len(d) == 8:
+                r[0] = f'{d[:4]}-{d[4:6]}-{d[6:]}'
+        self._print_table('Warenkorbwert-Trend (AOV)', headers, rows)
+        if export_csv and rows:
+            self._export_csv('aov_trend.csv', headers, rows)
+        if len(rows) >= 2:
+            half = len(rows) // 2
+            first_half = [float(r[3].replace(',', '')) for r in rows[:half]]
+            second_half = [float(r[3].replace(',', '')) for r in rows[half:]]
+            avg_first = sum(first_half) / len(first_half) if first_half else 0
+            avg_second = sum(second_half) / len(second_half) if second_half else 0
+            trend = 'steigend' if avg_second > avg_first else 'fallend' if avg_second < avg_first else 'stabil'
+            self._add_summary('Warenkorbwert-Trend', [
+                f'Erste Haelfte Avg. AOV: {avg_first:.2f} CHF',
+                f'Zweite Haelfte Avg. AOV: {avg_second:.2f} CHF',
+                f'Trend: {trend}',
+            ])
+
+    def repeat_purchase_rate(self, export_csv=False):
+        metrics = ['ecommercePurchases', 'sessions', 'totalUsers']
+        try:
+            resp = self._run_report(
+                ['newVsReturning'], metrics,
+                order_by=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name='newVsReturning'))],
+            )
+        except Exception as e:
+            print(f'\n  Business: Wiederkaufrate nicht verfuegbar ({e})')
+            return
+        headers = ['Nutzertyp', 'Kaeufe', 'Sessions', 'Users', 'Kaeufe/User']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            purchases = int(r[1])
+            users = int(r[3])
+            r.append(f'{purchases / users:.2f}' if users > 0 else '0.00')
+        self._print_table('Wiederkaufrate', headers, rows)
+        if export_csv:
+            self._export_csv('repeat_purchase_rate.csv', headers, rows)
+        if rows:
+            total_purchases = sum(int(r[1]) for r in rows)
+            returning = [r for r in rows if 'return' in r[0].lower()]
+            new = [r for r in rows if 'new' in r[0].lower()]
+            insights = []
+            if returning:
+                ret_purchases = int(returning[0][1])
+                ret_share = ret_purchases / total_purchases * 100 if total_purchases > 0 else 0
+                insights.append(f'Wiederkehrende: {ret_purchases} Kaeufe ({ret_share:.1f}% aller Kaeufe)')
+            if new:
+                new_purchases = int(new[0][1])
+                new_share = new_purchases / total_purchases * 100 if total_purchases > 0 else 0
+                insights.append(f'Neukunden: {new_purchases} Kaeufe ({new_share:.1f}% aller Kaeufe)')
+            self._add_summary('Wiederkaufrate', insights)
+
+    def landing_page_efficiency(self, export_csv=False):
+        metrics = ['sessions', 'ecommercePurchases', 'purchaseRevenue', 'bounceRate']
+        try:
+            resp = self._run_report(
+                ['landingPage'], metrics, limit=20,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='purchaseRevenue'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  Business: Landing-Page-Effizienz nicht verfuegbar ({e})')
+            return
+        headers = ['Landing Page', 'Sessions', 'Kaeufe', 'Umsatz', 'Bounce%', 'Conv%', 'CHF/Session']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            sessions = int(r[1])
+            purchases = int(r[2])
+            revenue = float(r[3].replace(',', ''))
+            r.append(f'{purchases / sessions * 100:.2f}%' if sessions > 0 else '0.00%')
+            r.append(f'{revenue / sessions:.2f}' if sessions > 0 else '0.00')
+        self._print_table('Landing-Page-Effizienz (nach Umsatz)', headers, rows)
+        if export_csv:
+            self._export_csv('landing_page_efficiency.csv', headers, rows)
+        if rows:
+            converting = [r for r in rows if r[2] != '0']
+            self._add_summary('Landing-Page-Effizienz', [
+                f'{r[0]}: {r[3]} CHF Umsatz, {r[5]} Conv-Rate, {r[6]} CHF/Session' for r in converting[:5]
+            ])
+
+    def mobile_conversion_gap(self, export_csv=False):
+        metrics = ['sessions', 'ecommercePurchases', 'purchaseRevenue', 'engagementRate', 'bounceRate']
+        try:
+            resp = self._run_report(['deviceCategory'], metrics)
+        except Exception as e:
+            print(f'\n  Business: Mobile Conversion Gap nicht verfuegbar ({e})')
+            return
+        headers = ['Geraet', 'Sessions', 'Kaeufe', 'Umsatz', 'Engage%', 'Bounce%', 'Conv%', 'CHF/Session']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            sessions = int(r[1])
+            purchases = int(r[2])
+            revenue = float(r[3].replace(',', ''))
+            r.append(f'{purchases / sessions * 100:.2f}%' if sessions > 0 else '0.00%')
+            r.append(f'{revenue / sessions:.2f}' if sessions > 0 else '0.00')
+        rows.sort(key=lambda r: int(r[1]), reverse=True)
+        self._print_table('Mobile Conversion Gap', headers, rows)
+        if export_csv:
+            self._export_csv('mobile_conversion_gap.csv', headers, rows)
+        if rows:
+            device_map = {r[0]: r for r in rows}
+            mobile = device_map.get('mobile')
+            desktop = device_map.get('desktop')
+            insights = []
+            for r in rows:
+                insights.append(f'{r[0]}: {r[6]} Conv-Rate, {r[7]} CHF/Session, Bounce {r[5]}')
+            if mobile and desktop:
+                m_conv = float(mobile[6].rstrip('%'))
+                d_conv = float(desktop[6].rstrip('%'))
+                gap = d_conv - m_conv
+                if gap > 0.5:
+                    insights.append(f'PROBLEM: Mobile Conv-Rate {gap:.1f}pp niedriger als Desktop')
+            self._add_summary('Mobile Conversion Gap', insights)
+
+    def monthly_trend(self, export_csv=False):
+        metrics = ['sessions', 'totalUsers', 'ecommercePurchases', 'purchaseRevenue']
+        try:
+            resp = self._run_report(
+                ['date'], metrics,
+                order_by=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name='date'))],
+            )
+        except Exception as e:
+            print(f'\n  Business: Monatstrend nicht verfuegbar ({e})')
+            return
+        # Aggregiere pro Monat
+        monthly = {}
+        for row in resp.rows:
+            d = row.dimension_values[0].value
+            month = f'{d[:4]}-{d[4:6]}' if len(d) == 8 else d
+            if month not in monthly:
+                monthly[month] = {'sessions': 0, 'users': 0, 'purchases': 0, 'revenue': 0.0}
+            monthly[month]['sessions'] += int(float(row.metric_values[0].value))
+            monthly[month]['users'] += int(float(row.metric_values[1].value))
+            monthly[month]['purchases'] += int(float(row.metric_values[2].value))
+            monthly[month]['revenue'] += float(row.metric_values[3].value)
+        headers = ['Monat', 'Sessions', 'Users', 'Kaeufe', 'Umsatz', 'Avg. Warenkorb']
+        rows = []
+        for month in sorted(monthly.keys()):
+            m = monthly[month]
+            avg_order = m['revenue'] / m['purchases'] if m['purchases'] > 0 else 0
+            rows.append([
+                month, str(m['sessions']), str(m['users']),
+                str(m['purchases']), f'{m["revenue"]:,.2f}', f'{avg_order:.2f}',
+            ])
+        self._print_table('Monatstrend', headers, rows)
+        if export_csv and rows:
+            self._export_csv('monthly_trend.csv', headers, rows)
+        if rows:
+            self._add_summary('Monatstrend', [
+                f'{r[0]}: {r[4]} CHF Umsatz, {r[3]} Kaeufe, {r[1]} Sessions' for r in rows
+            ])
+
+    def product_stickiness(self, export_csv=False):
+        metrics = ['itemsViewed', 'itemsAddedToCart', 'itemsPurchased', 'itemRevenue']
+        try:
+            resp = self._run_report(
+                ['itemName'], metrics, limit=30,
+                order_by=[OrderBy(metric=OrderBy.MetricOrderBy(metric_name='itemsViewed'), desc=True)],
+            )
+        except Exception as e:
+            print(f'\n  Business: Produkt-Stickiness nicht verfuegbar ({e})')
+            return
+        headers = ['Produkt', 'Views', 'Warenkorb', 'Gekauft', 'Umsatz',
+                   'View→Cart%', 'Cart→Buy%', 'View→Buy%']
+        rows = self._rows_to_list(resp, 1, metrics)
+        for r in rows:
+            views = int(r[1])
+            cart = int(r[2])
+            bought = int(r[3])
+            r.append(f'{cart / views * 100:.1f}%' if views > 0 else '0.0%')
+            r.append(f'{bought / cart * 100:.1f}%' if cart > 0 else '0.0%')
+            r.append(f'{bought / views * 100:.1f}%' if views > 0 else '0.0%')
+        rows = [r for r in rows if r[1] != '0']
+        self._print_table('Produkt-Stickiness (View→Cart→Buy)', headers, rows)
+        if export_csv and rows:
+            self._export_csv('product_stickiness.csv', headers, rows)
+        if rows:
+            # Hohe Views aber niedrige Cart-Rate = Preishuerde
+            high_view_low_cart = [r for r in rows if int(r[1]) > 10
+                                  and float(r[5].rstrip('%')) < 5 and r[5] != '0.0%']
+            # Hohe Cart aber niedrige Buy-Rate = Checkout-Problem
+            high_cart_low_buy = [r for r in rows if int(r[2]) > 3
+                                 and float(r[6].rstrip('%')) < 30]
+            insights = [
+                f'{r[0]}: {r[5]} View→Cart, {r[6]} Cart→Buy ({r[1]} Views)' for r in rows[:3]
+            ]
+            for r in high_view_low_cart[:2]:
+                insights.append(f'Preishuerde? {r[0]}: {r[1]} Views aber nur {r[5]} View→Cart')
+            for r in high_cart_low_buy[:2]:
+                insights.append(f'Checkout-Problem? {r[0]}: {r[2]} im Warenkorb aber nur {r[6]} Cart→Buy')
+            self._add_summary('Produkt-Stickiness', insights)
+
+    def run_business(self, export_csv=False):
+        self.first_touch_attribution(export_csv)
+        self.product_category_performance(export_csv)
+        self.conversion_funnel(export_csv)
+        self.channel_revenue_efficiency(export_csv)
+        self.aov_trend(export_csv)
+        self.repeat_purchase_rate(export_csv)
+        self.landing_page_efficiency(export_csv)
+        self.mobile_conversion_gap(export_csv)
+        self.monthly_trend(export_csv)
+        self.product_stickiness(export_csv)
+
     # ── Alle Module ──────────────────────────────────────────────────
 
     def run_all(self, export_csv=False):
@@ -810,6 +1166,7 @@ class GA4Analytics:
         self.run_geo(export_csv)
         self.run_time(export_csv)
         self.run_ux(export_csv)
+        self.run_business(export_csv)
         self.problem_detection(export_csv)
         self._write_summary()
 
@@ -817,7 +1174,7 @@ class GA4Analytics:
 def main():
     parser = argparse.ArgumentParser(description='GA4 Shop-Analyse-Suite fuer labtec-safety')
     parser.add_argument('--all', action='store_true', help='Alle Module ausfuehren')
-    parser.add_argument('--module', choices=['traffic', 'behavior', 'ecommerce', 'devices', 'geo', 'time', 'ux', 'problems'],
+    parser.add_argument('--module', choices=['traffic', 'behavior', 'ecommerce', 'devices', 'geo', 'time', 'ux', 'business', 'problems'],
                         help='Einzelnes Modul ausfuehren')
     parser.add_argument('--days', type=int, default=90, help='Zeitraum in Tagen (Standard: 90)')
     parser.add_argument('--csv', action='store_true', help='CSV-Export aktivieren')
@@ -856,6 +1213,9 @@ def main():
         analytics._write_summary()
     elif args.module == 'ux':
         analytics.run_ux(export_csv=args.csv)
+        analytics._write_summary()
+    elif args.module == 'business':
+        analytics.run_business(export_csv=args.csv)
         analytics._write_summary()
     elif args.module == 'problems':
         analytics.problem_detection(export_csv=args.csv)

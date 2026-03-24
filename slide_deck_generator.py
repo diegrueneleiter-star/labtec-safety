@@ -209,7 +209,9 @@ class SlideDeckGenerator:
             f'### Anweisung\n'
             f'Erstelle ein Donut-Diagramm (Dunkelblau #1e326e fuer neue, '
             f'Gruen #009b91 fuer wiederkehrende Nutzer). Daneben die '
-            f'wichtigsten Metriken als KPI-Karten.\n\n'
+            f'wichtigsten Metriken als KPI-Karten. Zeige zusaetzlich den '
+            f'Umsatz-Split (Umsatz, Kaeufe, Avg. Warenkorbwert) pro Nutzertyp '
+            f'als separate KPI-Zeile.\n\n'
             f'### Daten\n'
             f'{self._csv_to_markdown("new_vs_returning.csv")}\n'
         )
@@ -360,6 +362,184 @@ class SlideDeckGenerator:
             f'{self._infsh_command("problems")}\n'
         )
 
+    # ── Business Insight Slides ─────────────────────────────────────
+
+    def _slide_first_touch(self):
+        data = self._read_csv('first_touch_attribution.csv')
+        if not data:
+            return (
+                f'## Slide: Erstakquise-Kanaele\n\n'
+                f'*Keine Erstakquise-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Erstakquise-Kanaele\n\n'
+            f'### Anweisung\n'
+            f'Horizontales Balkendiagramm: Welche Kanaele bringen zahlende '
+            f'Kunden? Sortiert nach Umsatz. Farbe: Labtec-Dunkelblau (#1e326e). '
+            f'CHF/User als sekundaere Metrik hervorheben.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("first_touch_attribution.csv")}\n'
+        )
+
+    def _slide_category_performance(self):
+        data = self._read_csv('product_category_performance.csv')
+        if not data:
+            return (
+                f'## Slide: Produktkategorie-Performance\n\n'
+                f'*Keine Kategorie-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Produktkategorie-Performance\n\n'
+            f'### Anweisung\n'
+            f'Treemap oder gestapeltes Balkendiagramm der Produktkategorien '
+            f'nach Umsatz. Verwende die Labtec-Kategoriefarben. '
+            f'Cart/View-Rate als Effizienz-Indikator hervorheben.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("product_category_performance.csv")}\n'
+        )
+
+    def _slide_conversion_funnel(self):
+        data = self._read_csv('conversion_funnel.csv')
+        if not data:
+            return (
+                f'## Slide: Conversion Funnel\n\n'
+                f'*Keine Funnel-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Conversion Funnel\n\n'
+            f'### Anweisung\n'
+            f'Trichter-Diagramm: Sessions → Warenkorb → Kauf. '
+            f'Drop-off-Raten zwischen jeder Stufe prominent anzeigen. '
+            f'Gruen (#009b91) fuer Conversions, Rot (#af0f09) fuer Drop-offs. '
+            f'Gesamtumsatz als grosse KPI-Karte.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("conversion_funnel.csv")}\n'
+        )
+
+    def _slide_channel_efficiency(self):
+        data = self._read_csv('channel_revenue_efficiency.csv')
+        if not data:
+            return (
+                f'## Slide: Kanal-Effizienz\n\n'
+                f'*Keine Effizienz-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Kanal-Effizienz (ROI)\n\n'
+            f'### Anweisung\n'
+            f'Ranking-Tabelle der Kanaele nach CHF/Session und CHF/User. '
+            f'Beste Kanaele mit gruenen Badges (#009b91) hervorheben. '
+            f'Zeigt welche Kanaele den hoechsten ROI liefern.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("channel_revenue_efficiency.csv")}\n'
+        )
+
+    def _slide_aov_trend(self):
+        data = self._read_csv('aov_trend.csv')
+        if not data:
+            return (
+                f'## Slide: Warenkorbwert-Trend\n\n'
+                f'*Keine AOV-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Warenkorbwert-Trend (AOV)\n\n'
+            f'### Anweisung\n'
+            f'Liniendiagramm des durchschnittlichen Warenkorbwerts ueber Zeit. '
+            f'Trendlinie einzeichnen. Farbe: Labtec-Gruen (#009b91). '
+            f'Vergleich erste vs. zweite Haelfte als KPI-Karten.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("aov_trend.csv")}\n'
+        )
+
+    def _slide_repeat_purchase(self):
+        data = self._read_csv('repeat_purchase_rate.csv')
+        if not data:
+            return (
+                f'## Slide: Wiederkaufrate\n\n'
+                f'*Keine Wiederkauf-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Wiederkaufrate\n\n'
+            f'### Anweisung\n'
+            f'Donut-Diagramm: Anteil Neukunden vs. Wiederkehrende an '
+            f'Gesamtkaeufen. Kaeufe/User als Effizienz-Metrik. '
+            f'Dunkelblau (#1e326e) fuer Neukunden, Gruen (#009b91) fuer '
+            f'Wiederkehrende. Zeigt ob das Geschaeft von Stammkunden lebt.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("repeat_purchase_rate.csv")}\n'
+        )
+
+    def _slide_landing_efficiency(self):
+        data = self._read_csv('landing_page_efficiency.csv')
+        if not data:
+            return (
+                f'## Slide: Landing-Page-Effizienz\n\n'
+                f'*Keine Landing-Page-Umsatz-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Landing-Page-Effizienz\n\n'
+            f'### Anweisung\n'
+            f'Rangliste der Landing Pages nach Umsatz. CHF/Session und '
+            f'Conversion-Rate als Balken. Seiten mit hohem Traffic aber '
+            f'niedrigem Umsatz rot markieren (#af0f09) = Optimierungspotenzial.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("landing_page_efficiency.csv")}\n'
+        )
+
+    def _slide_mobile_gap(self):
+        data = self._read_csv('mobile_conversion_gap.csv')
+        if not data:
+            return (
+                f'## Slide: Mobile Conversion Gap\n\n'
+                f'*Keine Mobile-Gap-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Mobile Conversion Gap\n\n'
+            f'### Anweisung\n'
+            f'Vergleichstabelle Mobile vs. Desktop: Conversion-Rate, '
+            f'CHF/Session, Bounce-Rate. Gap als Delta hervorheben. '
+            f'Wenn Mobile deutlich schlechter: Warnfarbe (#af0f09). '
+            f'Zeigt wie viel Umsatz durch Mobile-Optimierung moeglich waere.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("mobile_conversion_gap.csv")}\n'
+        )
+
+    def _slide_monthly_trend(self):
+        data = self._read_csv('monthly_trend.csv')
+        if not data:
+            return (
+                f'## Slide: Monatstrend\n\n'
+                f'*Keine Monatstrend-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Monatstrend & Saisonalitaet\n\n'
+            f'### Anweisung\n'
+            f'Kombinations-Diagramm: Balken fuer Umsatz (Gruen #009b91), '
+            f'Linie fuer Sessions (Dunkelblau #1e326e). '
+            f'Zeigt saisonale Schwankungen und Wachstumstrend. '
+            f'Avg. Warenkorbwert als zweite Achse.\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("monthly_trend.csv")}\n'
+        )
+
+    def _slide_product_stickiness(self):
+        data = self._read_csv('product_stickiness.csv')
+        if not data:
+            return (
+                f'## Slide: Produkt-Stickiness\n\n'
+                f'*Keine Stickiness-Daten verfuegbar.*\n'
+            )
+        return (
+            f'## Slide: Produkt-Stickiness\n\n'
+            f'### Anweisung\n'
+            f'Bubble-Chart oder Scatter-Plot: X=View→Cart%, Y=Cart→Buy%, '
+            f'Groesse=Views. Produkte mit hohen Views aber niedrigem '
+            f'View→Cart in Rot markieren (Preishuerde). Produkte mit hohem '
+            f'Cart aber niedrigem Buy in Orange markieren (Checkout-Problem). '
+            f'Top-Performer in Gruen (#009b91).\n\n'
+            f'### Daten\n'
+            f'{self._csv_to_markdown("product_stickiness.csv", max_rows=20)}\n'
+        )
+
     # ── Output generieren ────────────────────────────────────────────
 
     def generate_prompt_package(self):
@@ -375,9 +555,18 @@ class SlideDeckGenerator:
             self._slide_ecommerce(),
             self._slide_products(),
             self._slide_cart(),
+            self._slide_first_touch(),
+            self._slide_category_performance(),
+            self._slide_conversion_funnel(),
+            self._slide_channel_efficiency(),
+            self._slide_aov_trend(),
+            self._slide_repeat_purchase(),
+            self._slide_landing_efficiency(),
+            self._slide_mobile_gap(),
+            self._slide_monthly_trend(),
+            self._slide_product_stickiness(),
             self._slide_devices(),
             self._slide_geography(),
-            self._slide_time_patterns(),
             self._slide_problems(),
         ]
 
@@ -439,9 +628,18 @@ class SlideDeckGenerator:
             ('E-Commerce', self._slide_ecommerce),
             ('Produkte', self._slide_products),
             ('Warenkorb', self._slide_cart),
+            ('Erstakquise-Kanaele', self._slide_first_touch),
+            ('Kategorie-Performance', self._slide_category_performance),
+            ('Conversion Funnel', self._slide_conversion_funnel),
+            ('Kanal-Effizienz', self._slide_channel_efficiency),
+            ('Warenkorbwert-Trend', self._slide_aov_trend),
+            ('Wiederkaufrate', self._slide_repeat_purchase),
+            ('Landing-Page-Effizienz', self._slide_landing_efficiency),
+            ('Mobile Conversion Gap', self._slide_mobile_gap),
+            ('Monatstrend', self._slide_monthly_trend),
+            ('Produkt-Stickiness', self._slide_product_stickiness),
             ('Geraete & Browser', self._slide_devices),
             ('Geografie', self._slide_geography),
-            ('Zeitmuster', self._slide_time_patterns),
             ('Probleme', self._slide_problems),
         ]
 

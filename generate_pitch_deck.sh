@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────
 # Pitch Deck Generator fuer labtec-safety.ch
 # Generiert GA4-Daten, erstellt Slide Deck Prompt + HTML-Vorschau
-# + Gamma.app Prompt-Paket
+# + Gamma.app Prompt-Paket + Manus AI Prompt
 # ─────────────────────────────────────────────────────────────
 
 set -e
@@ -17,19 +17,24 @@ echo "=================================================="
 echo ""
 
 # Schritt 1: GA4-Daten erheben
-echo "[1/4] GA4-Daten werden erhoben (alle Module inkl. Business Insights)..."
+echo "[1/5] GA4-Daten werden erhoben (alle Module inkl. Business Insights)..."
 echo ""
 python3 ga4_analytics.py --all --csv
 
 echo ""
-echo "[2/4] Slide Deck Prompt-Paket + HTML-Vorschau werden erstellt..."
+echo "[2/5] Slide Deck Prompt-Paket + HTML-Vorschau werden erstellt..."
 echo ""
 python3 slide_deck_generator.py --html
 
 echo ""
-echo "[3/4] Gamma.app Prompt-Paket wird erstellt..."
+echo "[3/5] Gamma.app Prompt-Paket wird erstellt..."
 echo ""
 python3 gamma_prompt_generator.py
+
+echo ""
+echo "[4/5] Manus AI Prompt wird erstellt..."
+echo ""
+python3 manus_prompt_generator.py
 
 echo ""
 echo "=================================================="
@@ -46,20 +51,23 @@ echo "  Gamma.app:"
 echo "    reports/GAMMA_PROMPT.md       → In Gamma hochladen (Import)"
 echo "    reports/GAMMA_PASTE_PROMPT.txt→ Prompt ins Textfeld einfuegen"
 echo ""
+echo "  Manus AI:"
+echo "    reports/MANUS_PROMPT.md       → In Manus einfuegen"
+echo ""
 echo "  Rohdaten:"
 echo "    reports/SUMMARY.md            → Zusammenfassung aller Daten"
 echo "    reports/*.csv                 → Rohdaten"
 echo ""
 
-# Schritt 4: HTML-Vorschau oeffnen
+# Schritt 5: HTML-Vorschau oeffnen
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo "[4/4] HTML-Vorschau wird geoeffnet..."
+    echo "[5/5] HTML-Vorschau wird geoeffnet..."
     open "$SCRIPT_DIR/reports/slide_preview.html"
 elif command -v xdg-open &>/dev/null; then
-    echo "[4/4] HTML-Vorschau wird geoeffnet..."
+    echo "[5/5] HTML-Vorschau wird geoeffnet..."
     xdg-open "$SCRIPT_DIR/reports/slide_preview.html"
 else
-    echo "[4/4] Oeffne manuell: $SCRIPT_DIR/reports/slide_preview.html"
+    echo "[5/5] Oeffne manuell: $SCRIPT_DIR/reports/slide_preview.html"
 fi
 
 echo ""
@@ -81,4 +89,10 @@ echo "  1. Oeffne gamma.app/create/generate"
 echo "  2. reports/GAMMA_PROMPT.md als Dokument importieren"
 echo "  3. Inhalt von reports/GAMMA_PASTE_PROMPT.txt ins Textfeld"
 echo "  4. Generate klicken"
+echo ""
+echo "  Option C — Manus AI:"
+echo "  1. Oeffne manus.im"
+echo "  2. Neuen Chat starten"
+echo "  3. Inhalt von reports/MANUS_PROMPT.md einfuegen"
+echo "  4. Manus erstellt die Praesentation als PDF"
 echo ""
